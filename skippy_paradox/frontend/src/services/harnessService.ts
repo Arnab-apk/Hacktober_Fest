@@ -49,11 +49,12 @@ export const POPULAR_OPENROUTER_MODELS = [
   'google/gemini-2.0-flash-exp:free',
 ];
 
-export async function loadModels(provider: string, apiKey: string, accessToken: string) {
+export async function loadModels(provider: string, apiKey: string, accessToken: string, signal?: AbortSignal) {
   return (await checked(await fetch(`${API_BASE}/harness/models`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ provider, apiKey }),
+    signal,
   }))).json();
 }
 

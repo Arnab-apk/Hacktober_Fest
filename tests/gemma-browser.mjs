@@ -26,10 +26,16 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const requests = [];
+  let emptyModels = false;
   let failNext = false;
   let delayNext = false;
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
+    if ((url.pathname.endsWith('/gemma/status') || url.pathname.endsWith('/harness/models')) && route.request().headers().authorization !== 'Bearer fixture-access') {
+      await route.fulfill({ status: 401, json: {detail:'Enter the server access token in Harness settings.'} }); return;
+    }
+    if (url.pathname.endsWith('/harness/models') && emptyModels) { await route.fulfill({json:{models:[]}}); return; }
+
     if (url.pathname.endsWith('/gemma/status')) {
       const provider = url.searchParams.get('provider');
       await route.fulfill({ json: { configured: true, model: provider === 'ollama' ? 'gemma4:e4b' : 'gemma-4-26b-a4b-it', models: provider === 'ollama' ? ['gemma4:e4b'] : [], provider } });
@@ -44,10 +50,17 @@ try {
     } else await route.fulfill({ json: { status: 'ok', models: [], providers: ['gemini', 'openrouter', 'ollama'] } });
   });
   await page.goto(`http://127.0.0.1:${testPort}`);
+  const agent = page.locator('.ide-agent');
+  await agent.getByLabel('Server access token').waitFor({state:'visible'});
+  await agent.getByLabel('Server access token').fill('  fixture-access  ');
+  await agent.getByRole('button',{name:'Connect',exact:true}).click();
+  await page.waitForFunction(() => document.querySelector('select[aria-label="AI model"]')?.value === 'gemma4:e4b');
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('harness-access-token')), 'fixture-access');
   await page.getByRole('button', { name: 'Gemma Mentor', exact: true }).click();
+
   const mentor = page.getByRole('region', { name: 'Gemma Code Mentor' });
   const connectionSummary = mentor.locator('summary').filter({ hasText: 'Model & connection' });
-  if (await connectionSummary.count()) await connectionSummary.click();
+  if (await connectionSummary.count() && !await mentor.getByLabel('Run Gemma with').isVisible()) await connectionSummary.click();
   await mentor.getByLabel('Run Gemma with').selectOption('gemini');
   await mentor.getByLabel('Your question').fill('Explain this code');
   await mentor.getByRole('button', { name: 'Ask Gemma', exact: true }).click();
@@ -94,7 +107,29 @@ try {
   await page.getByRole('button', { name: 'Skippy Agent', exact: true }).click();
   await page.getByLabel('AI provider').selectOption('gemini');
   await page.getByLabel('AI model').selectOption('gemma-4-26b-a4b-it');
+  emptyModels = true;
+  await agent.getByRole('button', {name:'Refresh models',exact:true}).click();
+  await agent.getByRole('alert').filter({hasText:'No tool-capable models'}).waitFor();
+  assert.equal(await agent.getByLabel('AI model').inputValue(), '');
+  assert.equal(await agent.getByLabel('AI model').locator('option').count(), 1);
+  emptyModels = false;
+  await agent.getByRole('button', {name:'Refresh models',exact:true}).click();
+  await page.waitForFunction(() => document.querySelector('select[aria-label="AI model"]')?.value === 'gemma-4-26b-a4b-it');
+  // Saving access in either panel must invalidate the other panel's model list.
+  await agent.getByLabel('Server access token').fill('invalid-token');
+  await agent.getByRole('button', {name:'Connect',exact:true}).click();
+  await agent.getByRole('alert').filter({hasText:'server access token'}).waitFor();
+  assert.equal(await agent.getByLabel('AI model').inputValue(), '');
+  await page.getByRole('button', {name:'Gemma Mentor',exact:true}).click();
+  await mentor.getByLabel('Server access token').waitFor({state:'visible'});
+  assert.equal(await mentor.getByLabel('Server access token').inputValue(), 'invalid-token');
+  await mentor.getByLabel('Server access token').fill('fixture-access');
+  await mentor.getByRole('button', {name:'Connect',exact:true}).click();
+  await page.getByRole('button', {name:'Skippy Agent',exact:true}).click();
+  await page.waitForFunction(() => document.querySelector('select[aria-label="AI model"]')?.value === 'gemma-4-26b-a4b-it');
   assert.deepEqual(errors, []);
+  console.log('ACCESS PASS: visible auth recovery, trimmed token, automatic model reload, shared Agent/Mentor access, invalid-token model clearing, empty catalog recovery.');
+
   console.log('BROWSER PASS: code context, screenshot, follow-up, safe text rendering, quota error, stop, three providers, both themes, agent Gemini selector.');
 } catch (error) {
   console.error(error.message);

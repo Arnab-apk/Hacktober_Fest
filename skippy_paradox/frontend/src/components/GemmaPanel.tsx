@@ -3,6 +3,8 @@ import { BookOpen, ImagePlus, Send, Square, Trash2, X } from 'lucide-react';
 import { StoredFile } from '../services/storageService';
 import { askGemma, gemmaStatus, readMentorImage, MentorImage, MentorMessage, MentorMode, GemmaProvider, GemmaStatus } from '../services/gemmaService';
 import './GemmaPanel.css';
+import { defaultAIProvider, needsServerAccess, useServerAccessToken } from '../services/serverAccess';
+import { ServerAccessSettings } from './ServerAccessSettings';
 
 const MODES: { value: MentorMode; label: string; prompt: string }[] = [
   { value: 'explain', label: 'Explain code', prompt: 'Explain this code step by step and help me understand its key concepts.' },
@@ -20,7 +22,7 @@ function Answer({ text }: { text: string }) {
 
 export function GemmaPanel({ activeFile }: { activeFile: StoredFile | null }) {
   const [mode, setMode] = useState<MentorMode>('explain');
-  const [provider, setProvider] = useState<GemmaProvider>('ollama');
+  const [provider, setProvider] = useState<GemmaProvider>(defaultAIProvider);
   const [model, setModel] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [input, setInput] = useState('');
@@ -32,7 +34,8 @@ export function GemmaPanel({ activeFile }: { activeFile: StoredFile | null }) {
   const [error, setError] = useState('');
   const [status, setStatus] = useState<GemmaStatus | null>(null);
   const [statusError, setStatusError] = useState('');
-  const [token, setToken] = useState(() => sessionStorage.getItem('harness-access-token') || '');
+  const token = useServerAccessToken();
+  const [connectionOpen, setConnectionOpen] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -43,7 +46,7 @@ export function GemmaPanel({ activeFile }: { activeFile: StoredFile | null }) {
     setStatus(null);
     setStatusError('');
     gemmaStatus(token, abort.signal, provider).then(value => { if (!abort.signal.aborted) { setStatus(value); setModel(value.model); } }).catch(err => {
-      if (!abort.signal.aborted) setStatusError(err.message || 'Could not check Gemma configuration.');
+      if (!abort.signal.aborted) { setStatusError(err.message || 'Could not check Gemma configuration.'); if (needsServerAccess(err.message || '')) setConnectionOpen(true); }
     });
     return () => abort.abort();
   }, [token, provider, refresh]);
@@ -94,7 +97,7 @@ export function GemmaPanel({ activeFile }: { activeFile: StoredFile | null }) {
 
   return <section className="gemma-panel" aria-label="Gemma Code Mentor">
     <header className="gemma-heading"><BookOpen size={20} aria-hidden="true" /><div><h2>Gemma Code Mentor</h2><p>Learn, review, and build with text + images</p></div></header>
-    <details className="gemma-config mentor-settings"><summary className="mentor-settings-summary"><span>Model &amp; connection</span><small className={statusError || (status && !status.configured) ? 'mentor-connection-issue' : ''}>{statusError ? 'Connection issue' : status && !status.configured ? 'Setup needed' : status?.model || 'Connecting…'}</small></summary><div className="mentor-settings-body">
+    <details className="gemma-config mentor-settings" open={connectionOpen} onToggle={event => setConnectionOpen(event.currentTarget.open)}><summary className="mentor-settings-summary"><span>Model &amp; connection</span><small className={statusError || (status && !status.configured) ? 'mentor-connection-issue' : ''}>{statusError ? 'Connection issue' : status && !status.configured ? 'Setup needed' : status?.model || 'Connecting…'}</small></summary><div className="mentor-settings-body">
       <label htmlFor="gemma-provider">Run Gemma with</label><select id="gemma-provider" value={provider} disabled={busy} onChange={event => { setProvider(event.target.value as GemmaProvider); setMessages([]); setError(''); }}>
         <option value="gemini">Gemini API · server key</option><option value="ollama">Ollama · my laptop</option><option value="openrouter">OpenRouter · server key</option>
       </select>
@@ -103,9 +106,7 @@ export function GemmaPanel({ activeFile }: { activeFile: StoredFile | null }) {
       {status && !status.configured && <p role="status">{provider === 'ollama' ? 'Install or select a Gemma 4 model in Ollama.' : `Set ${provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENROUTER_API_KEY'} in the server .env, then restart the app.`}</p>}
       {statusError && <p role="alert">{statusError}</p>}
       <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)}>Check connection</button>
-      <details><summary>Server access</summary><label htmlFor="gemma-token">Server access token</label><input id="gemma-token" type="password" autoComplete="off" value={token} disabled={busy} onChange={event => {
-        setToken(event.target.value); sessionStorage.setItem('harness-access-token', event.target.value);
-      }} /><p>Use the same access token as the Skippy harness for remote access.</p></details>
+      <details open={needsServerAccess(statusError) || undefined}><summary>Server access</summary><ServerAccessSettings disabled={busy} /></details>
     </div></details>
     <div className="gemma-options"><label htmlFor="gemma-mode">What do you want to do?</label><select id="gemma-mode" value={mode} disabled={busy} onChange={event => setMode(event.target.value as MentorMode)}>
       {MODES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}

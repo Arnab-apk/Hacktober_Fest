@@ -5,6 +5,8 @@ import { StoredFile } from '../services/storageService';
 import { CollabProvider, SharedFileInfo } from '../services/collabService';
 import { approveCommand, cancelRun, HarnessEvent, hydrateFiles, loadModels, streamHarness } from '../services/harnessService';
 import { detectLanguage } from '../utils/detectLanguage';
+import { defaultAIProvider, needsServerAccess, useServerAccessToken } from '../services/serverAccess';
+import { ServerAccessSettings } from './ServerAccessSettings';
 
 interface Props {
   beginAgent?: () => Promise<() => Promise<void>>;
@@ -21,13 +23,13 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
   const { isDark } = useTheme();
   const [provider, setProvider] = useState<'ollama' | 'openrouter' | 'gemini'>(() => {
     const saved = localStorage.getItem('harness-provider');
-    return saved === 'gemini' || saved === 'openrouter' ? saved : 'ollama';
+    return saved === 'gemini' || saved === 'openrouter' || saved === 'ollama' ? saved : defaultAIProvider();
   });
   const [model, setModel] = useState('');
   const [models, setModels] = useState<string[]>([]);
   // Provider credentials are managed on the server, never in browser storage.
   const apiKey = '';
-  const [accessToken, setAccessToken] = useState(() => sessionStorage.getItem('harness-access-token') || '');
+  const accessToken = useServerAccessToken();
   const [settings, setSettings] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -75,28 +77,29 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
     room?.releaseAgent();
   }, [room]);
 
-  async function refreshModels(selectedProvider = provider) {
+  async function refreshModels(selectedProvider = provider, signal?: AbortSignal) {
     const ticket = ++generation.current;
-    setLoadingModels(true); setError('');
+    setLoadingModels(true); setError(''); setModels([]); setModel('');
     try {
-      const data = await loadModels(selectedProvider, apiKey, accessToken);
-      if (ticket !== generation.current) return;
+      const data = await loadModels(selectedProvider, apiKey, accessToken, signal);
+      if (ticket !== generation.current || signal?.aborted) return;
+      if (!Array.isArray(data.models) || !data.models.length) throw new Error(selectedProvider === 'ollama' ? 'No models found. Install a tool-capable model on the configured Ollama server. Hosted deployments cannot reach Ollama on your laptop.' : 'No tool-capable models are available for this provider. Check its server configuration.');
       setModels(data.models);
       const saved = localStorage.getItem(`harness-model-${selectedProvider}`);
       const selected = data.models.includes(saved)
         ? saved
-        : data.models.find((m: string) => /gemma.?4/i.test(m)) || data.models[0] || 'nvidia/nemotron-3.5-lightning:free';
+        : data.models.find((m: string) => /gemma.?4/i.test(m)) || data.models[0];
       setModel(selected);
       localStorage.setItem(`harness-model-${selectedProvider}`, selected);
-    } catch (err: any) { if (ticket === generation.current) setError(err.message); }
+    } catch (err: any) { if (ticket === generation.current && !signal?.aborted) { setError(err.message); if (needsServerAccess(err.message)) setSettings(true); } }
     finally { if (ticket === generation.current) setLoadingModels(false); }
   }
   useEffect(() => {
     localStorage.setItem('harness-provider', provider);
-    const initialModel = localStorage.getItem(`harness-model-${provider}`) || (provider === 'gemini' ? 'gemma-4-26b-a4b-it' : '');
-    setModel(initialModel);
-    void refreshModels(provider);
-  }, [provider]);
+    const controller = new AbortController();
+    void refreshModels(provider, controller.signal);
+    return () => { controller.abort(); generation.current++; };
+  }, [provider, accessToken]);
 
   async function start() {
     if (!prompt.trim() || busy || remoteBusy) return;
@@ -108,7 +111,7 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
     let answer = '';
     const activeRoom = room?.status === 'connected' ? room : null;
     try {
-      const chosenModel = model || (provider === 'gemini' ? 'gemma-4-26b-a4b-it' : '');
+      const chosenModel = model;
       if (!chosenModel) throw new Error('Refresh models and select one first.');
       if (activeRoom) { await activeRoom.claimAgent(); claimed = true; }
       if (beginAgent) finishWorkspace = await beginAgent();
@@ -197,7 +200,7 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
         {models.map(m => <option key={m} value={m}>{m}</option>)}
       </select>
       {settings && <div className="space-y-2">
-        <input aria-label="Server access token" type="password" placeholder="Server access token (for remote access)" className={field} value={accessToken} onChange={e => { setAccessToken(e.target.value); sessionStorage.setItem('harness-access-token', e.target.value); }} />
+        <ServerAccessSettings disabled={busy} className={field} />
         <p className="text-[10px] text-[var(--ide-muted)]">Keys are kept on the server in GEMINI_API_KEY and OPENROUTER_API_KEY. Local models use OLLAMA_BASE_URL. No automatic provider fallback.</p>
       </div>}
     </div>
