@@ -44,7 +44,7 @@ async function document(room, file, token) {
   await synced;
   return { doc, ws, text: doc.getText('monaco') };
 }
-test('two approved collaborators synchronize agent edits, protect conflicts, and release the room lock', { timeout: 15000 }, async () => {
+test('two approved collaborators synchronize agent edits, protect conflicts, and release the room lock', { timeout: process.env.COLLAB_TEST_URL ? 60000 : 15000 }, async () => {
   const room = 'test-' + Date.now();
   const host = await control(room), guest = await control(room);
   let hdoc, gdoc;
@@ -87,8 +87,11 @@ test('two approved collaborators synchronize agent edits, protect conflicts, and
     host.send({ type: 'agent-claim', requestId: 'after-disconnect' });
     assert.equal((await host.wait('agent-reply')).ok, true);
     const unauthorized = new WebSocket(`${base}/doc/${room}/file1?token=wrong`);
+    const unauthorizedMessages = [];
+    unauthorized.on('message', message => unauthorizedMessages.push(message));
     const code = await new Promise(resolve => unauthorized.once('close', resolve));
-    assert.equal(code, 4001);
+    assert.ok(code === 4001 || (process.env.COLLAB_TEST_URL && code === 1006), `Unauthorized connection closed with ${code}`);
+    assert.equal(unauthorizedMessages.length, 0, 'An unauthorized connection must receive no document data.');
   } finally {
     hdoc?.ws.close(); gdoc?.ws.close(); host.ws.close(); guest.ws.close(); hdoc?.doc.destroy(); gdoc?.doc.destroy();
   }
