@@ -1,0 +1,7 @@
+__pycache__/
+*html
+*.pyc
+.venv/
+.env
+.envrc
+.skippy/

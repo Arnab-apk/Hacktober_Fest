@@ -1,0 +1,9 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+httpx==0.28.1
+python-dotenv==1.1.0
+websockets==14.2
+openai>=3.5.0
+prompt-toolkit>=3.0.53
+pyyaml>=6.0.3
+rich>=15.0.0

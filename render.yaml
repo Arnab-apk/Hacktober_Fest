@@ -1,0 +1,50 @@
+# Render Blueprint for the repository root.
+# Create a Blueprint in Render and select this repository.
+services:
+  - type: web
+    name: skippy-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: skippy_paradox/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      - key: FRONTEND_URL
+        sync: false
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: BACKEND_PUBLIC_URL
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_OAUTH_SCOPES
+        value: "repo read:org read:user"
+      - key: SKIPPY_ACCESS_TOKEN
+        sync: false
+      - key: SKIPPY_ALLOW_SHELL
+        value: "false"
+      - key: JUDGE0_API_URL
+        value: "https://judge0-ce.p.rapidapi.com"
+      - key: JUDGE0_API_KEY
+        sync: false
+      - key: JUDGE0_API_HOST
+        value: "judge0-ce.p.rapidapi.com"
+
+  - type: web
+    name: skippy-collab
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: skippy_paradox/backend-socket
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.0"

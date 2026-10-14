@@ -1,0 +1,18 @@
+{
+  "name": "codecollab-socket",
+  "version": "1.0.0",
+  "description": "Real-time collaboration backend for CodeCollab — Yjs + WebSocket",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "yjs": "^13.6.24",
+    "y-protocols": "^1.0.6",
+    "lib0": "^0.2.99",
+    "node-pty": "^1.1.0"
+  }
+}

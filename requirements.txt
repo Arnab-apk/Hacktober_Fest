@@ -1,0 +1,2 @@
+-r skippy_paradox/backend/requirements.txt
+-e ./Skippy_harness

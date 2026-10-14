@@ -1,0 +1,47 @@
+{
+  "name": "codecollab-v3",
+  "private": true,
+  "version": "3.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --configLoader runner",
+    "build": "vite build --configLoader runner",
+    "typecheck": "tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "developer-icons": "^6.0.5",
+    "framer-motion": "^12.38.0",
+    "gsap": "^3.15.0",
+    "lib0": "^0.2.117",
+    "lucide-react": "^0.563.0",
+    "magika": "^1.0.0",
+    "marked": "^18.0.2",
+    "monaco-editor": "^0.53.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-resizable-panels": "4.10.0",
+    "react-virtualized-auto-sizer": "^2.0.3",
+    "react-window": "^2.2.7",
+    "y-monaco": "^0.1.6",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30",
+    "@xterm/xterm": "^6.0.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "diff": "^8.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.0",
+    "tailwindcss": "^3.4.17",
+    "terser": "^5.46.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

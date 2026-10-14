@@ -1,0 +1,44 @@
+# Render Blueprint — deploys both backend services
+# Usage: Connect this repo in Render Dashboard → "New Blueprint Instance"
+# Docs: https://docs.render.com/infrastructure-as-code
+
+services:
+  # ── FastAPI Backend (GitHub OAuth + API Proxy) ──────────────────────
+  - type: web
+    name: codecollab-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: BACKEND_PUBLIC_URL
+        sync: false
+      - key: JUDGE0_API_URL
+        value: https://judge0-ce.p.rapidapi.com
+      - key: PYTHON_VERSION
+        value: "3.11.6"
+    healthCheckPath: /health
+
+  # ── Node.js Socket Server (Real-time Collaboration) ────────────────
+  - type: web
+    name: codecollab-socket
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: backend-socket
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.0"
+    healthCheckPath: /health

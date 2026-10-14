@@ -1,0 +1,20 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Backend
+backend/venv/
+backend/.env
+
+# Frontend env (may contain API keys)
+frontend/.env
+__pycache__/
+*.pyc
+
+# Socket Backend
+backend-socket/node_modules/
+backend-socket/.env
+.vercel
+.env*
+!.env.example

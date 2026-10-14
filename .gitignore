@@ -1,0 +1,28 @@
+# Environments & Secrets
+.env
+.env.*
+.envrc
+!.env.example
+!**/.env.example
+
+# Python
+**/.venv*/
+**/venv/
+**/.cache/
+**/__pycache__/
+*.pyc
+
+# Node & Frontend Build
+**/node_modules/
+**/dist/
+**/.vite/
+*.tsbuildinfo
+.vercel
+
+# Skippy, Testing & Logs
+**/.skippy/
+**/.skippy*/
+*.log
+test-results/
+playwright-report/
+artifacts/
