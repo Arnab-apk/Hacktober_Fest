@@ -759,17 +759,23 @@ function handleDocConnection(ws, roomId, fileId, sessionToken) {
 // ─── HTTP Server + WebSocket Routing ───────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
-  if (await ide.handleHttp(req, res)) return;
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Apply CORS before workspace routes, including their preflight requests.
+  const allowedOrigins = (process.env.FRONTEND_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
+  const origin = req.headers.origin;
+  if (!allowedOrigins.length || allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins.length ? origin : '*');
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Ide-Client, X-Room-Id, X-Room-Token');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
     return;
   }
+
+  if (await ide.handleHttp(req, res)) return;
 
   // Simple health check
   if (req.url === '/health') {
