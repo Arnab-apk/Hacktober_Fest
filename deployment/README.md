@@ -10,7 +10,7 @@
 
 The generated server access token is saved only in the ignored local .env.deploy file and the Render environment settings. Enter its SKIPPY_ACCESS_TOKEN value in the app's Harness settings to use hosted workspaces and AI. Never commit that file or place the token in VITE_* variables.
 
-Select Gemma 4 / Gemini API in the AI provider dropdown. The existing Gemini key is stored on the API service. Ollama needs a separately reachable model server; the hosted services cannot reach Ollama on your laptop's localhost. OpenRouter and GitHub OAuth need their own credentials before use; GitHub PAT import/push can be configured separately.
+The hosted agent and Gemma tutor default to OpenRouter. Provider credentials are configured on Render and are never included in the frontend bundle. The agent lists the available OpenRouter tool-capable text models and Gemini text models; the tutor offers both Gemma 4 sizes through OpenRouter, including free routes that may be rate-limited. Google currently returns an internal error for its Gemma routes, so select OpenRouter for Gemma. Gemini agent models remain selectable. Ollama requires a separately reachable model server; the hosted services cannot reach Ollama on your laptop's localhost. GitHub OAuth still requires its own application credentials; GitHub PAT import/push can be configured separately. New workspace terminals inherit the selected provider and the server's model credentials.
 
 ## Future releases
 
