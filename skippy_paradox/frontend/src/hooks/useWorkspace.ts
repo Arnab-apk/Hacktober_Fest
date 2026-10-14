@@ -161,7 +161,8 @@ export function useWorkspace(files: StoredFile[], setFiles: React.Dispatch<React
 
   const beginAgent = useCallback(async () => {
     await flush(); const current = projectRef.current;
-    if (!current) throw new Error('Save or open a project before running Skippy.');
+    // Browser-only files already run in an isolated per-request copy; disk leases apply to saved projects.
+    if (!current) return async () => {};
     const result = await workspaceRequest<{token:string}>(`/projects/${current.id}/agent`,roomRef.current,{action:'claim'});
     projectRef.current = {...current, agentBusy:true}; setProject(projectRef.current);
     const interval = setInterval(() => { void workspaceRequest(`/projects/${current.id}/agent`,roomRef.current,{action:'heartbeat',token:result.token}).catch(()=>{}); },8000);
