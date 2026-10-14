@@ -138,10 +138,11 @@ def call_llm(messages, tools=None):
     kwargs = {"model": config.MODEL, "messages": messages}
     if config.ACTIVE_PROVIDER == "openrouter":
         kwargs["max_tokens"] = config.positive_int("MAX_OUTPUT_TOKENS", 4096)
+        kwargs["extra_body"] = {"reasoning": {"enabled": False}}
     if selected_tools:
         kwargs["tools"] = selected_tools
         if config.ACTIVE_PROVIDER == "openrouter":
-            kwargs["extra_body"] = {"provider": {"require_parameters": True}}
+            kwargs["extra_body"]["provider"] = {"require_parameters": True}
     try:
         response = active_client.chat.completions.create(**kwargs)
     except Exception as err:

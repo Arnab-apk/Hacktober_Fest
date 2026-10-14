@@ -66,6 +66,28 @@ class ProviderTests(unittest.TestCase):
             response = self.client.get('/api/gemma/status?provider=ollama')
             self.assertEqual(response.status_code, 503)
 
+    def test_openrouter_tutor_honors_selected_model(self):
+        answer = httpx.Response(200, json={'choices': [{'message': {'content': 'Selected model answer'}, 'finish_reason': 'stop'}]})
+        with patch('routers.gemma.httpx.AsyncClient.post', new_callable=AsyncMock, return_value=answer) as post:
+            response = self.client.post('/api/gemma/mentor', json={'provider': 'openrouter', 'model': 'google/gemma-4-31b-it:free', 'prompt': 'Explain'})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(post.call_args.kwargs['json']['model'], 'google/gemma-4-31b-it:free')
+            self.assertFalse(post.call_args.kwargs['json']['reasoning']['enabled'])
+        self.assertEqual(self.client.post('/api/gemma/mentor', json={'provider': 'openrouter', 'model': 'unlisted-model', 'prompt': 'Explain'}).status_code, 400)
+
+    def test_openrouter_catalog_offers_both_gemma_sizes(self):
+        response = self.client.get('/api/gemma/status?provider=openrouter')
+        self.assertIn('google/gemma-4-26b-a4b-it', response.json()['models'])
+        self.assertIn('google/gemma-4-31b-it:free', response.json()['models'])
+
+    def test_gemma_provider_errors_offer_recovery(self):
+        for provider, upstream_status, expected, hint in [('gemini', 500, 502, 'OpenRouter'), ('openrouter', 402, 402, 'credits'), ('openrouter', 429, 429, 'another Gemma model')]:
+            with self.subTest(provider=provider, status=upstream_status), patch('routers.gemma.httpx.AsyncClient.post', new_callable=AsyncMock, return_value=httpx.Response(upstream_status, json={'error': {'message': 'server-router'}})):
+                response = self.client.post('/api/gemma/mentor', json={'provider': provider, 'prompt': 'Explain'})
+                self.assertEqual(response.status_code, expected)
+                self.assertIn(hint, response.json()['detail'])
+                self.assertNotIn('server-router', response.text)
+
 
 if __name__ == '__main__':
     unittest.main()

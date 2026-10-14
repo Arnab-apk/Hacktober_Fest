@@ -287,7 +287,8 @@ export class IdeService {
           const env = Object.fromEntries(Object.entries(process.env).filter(([key,value]) => typeof value === 'string' && !/TOKEN|SECRET|API_KEY/i.test(key)));
           const python = process.env.SKIPPY_PYTHON || path.join(IDE_ROOT,'.venv310',process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
           const id = randomUUID(), launcherToken = randomUUID();
-          Object.assign(env,{SKIPPY_PYTHON:python,PYTHONPATH:path.join(IDE_ROOT,'Skippy_harness'),PYTHONIOENCODING:'utf-8',TERM:'xterm-256color',SKIPPY_TERMINAL_TOKEN:launcherToken,SKIPPY_TERMINAL_URL:`http://127.0.0.1:${process.env.PORT || '4000'}/internal/terminal-agent`,PROVIDER:message.provider === 'ollama' ? 'ollama' : 'openrouter',MODEL:String(message.model || ''),OPENROUTER_API_KEY:String(message.apiKey || ''),OLLAMA_BASE_URL:process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1'});
+          const selectedProvider = ['ollama', 'gemini', 'openrouter'].includes(message.provider) ? message.provider : 'openrouter';
+          Object.assign(env,{SKIPPY_PYTHON:python,PYTHONPATH:path.join(IDE_ROOT,'Skippy_harness'),PYTHONIOENCODING:'utf-8',TERM:'xterm-256color',SKIPPY_TERMINAL_TOKEN:launcherToken,SKIPPY_TERMINAL_URL:`http://127.0.0.1:${process.env.PORT || '4000'}/internal/terminal-agent`,PROVIDER:selectedProvider,MODEL:String(message.model || ''),OPENROUTER_API_KEY:process.env.OPENROUTER_API_KEY || String(message.apiKey || ''),GEMINI_API_KEY:process.env.GEMINI_API_KEY || '',OLLAMA_BASE_URL:process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1'});
           let shell, args;
           if (process.platform === 'win32') {
             shell = 'powershell.exe';

@@ -3,7 +3,7 @@ import { BookOpen, ImagePlus, Send, Square, Trash2, X } from 'lucide-react';
 import { StoredFile } from '../services/storageService';
 import { askGemma, gemmaStatus, readMentorImage, MentorImage, MentorMessage, MentorMode, GemmaProvider, GemmaStatus } from '../services/gemmaService';
 import './GemmaPanel.css';
-import { defaultAIProvider, needsServerAccess, useServerAccessToken } from '../services/serverAccess';
+import { canUseOllama, defaultAIProvider, needsServerAccess, useServerAccessToken } from '../services/serverAccess';
 import { ServerAccessSettings } from './ServerAccessSettings';
 
 const MODES: { value: MentorMode; label: string; prompt: string }[] = [
@@ -74,7 +74,7 @@ export function GemmaPanel({ activeFile }: { activeFile: StoredFile | null }) {
       setMessages(previous => [...previous, user, { role: 'assistant' as const, content: result.text }].slice(-60));
       setInput('');
       if (result.finishReason === 'MAX_TOKENS') setError('The answer reached its length limit. Ask a follow-up to continue.');
-      setStatus({ configured: true, model: result.model });
+      setStatus(previous => ({ ...previous, configured: true, model: result.model, provider }));
     } catch (err) {
       if (!abort.signal.aborted) setError(err instanceof Error ? err.message : 'Gemma could not answer. Try again.');
     } finally {
@@ -99,10 +99,10 @@ export function GemmaPanel({ activeFile }: { activeFile: StoredFile | null }) {
     <header className="gemma-heading"><BookOpen size={20} aria-hidden="true" /><div><h2>Gemma Code Mentor</h2><p>Learn, review, and build with text + images</p></div></header>
     <details className="gemma-config mentor-settings" open={connectionOpen} onToggle={event => setConnectionOpen(event.currentTarget.open)}><summary className="mentor-settings-summary"><span>Model &amp; connection</span><small className={statusError || (status && !status.configured) ? 'mentor-connection-issue' : ''}>{statusError ? 'Connection issue' : status && !status.configured ? 'Setup needed' : status?.model || 'Connecting…'}</small></summary><div className="mentor-settings-body">
       <label htmlFor="gemma-provider">Run Gemma with</label><select id="gemma-provider" value={provider} disabled={busy} onChange={event => { setProvider(event.target.value as GemmaProvider); setMessages([]); setError(''); }}>
-        <option value="gemini">Gemini API · server key</option><option value="ollama">Ollama · my laptop</option><option value="openrouter">OpenRouter · server key</option>
+        <option value="gemini">Gemini API · server key</option><option value="ollama" disabled={!canUseOllama()}>Ollama · {canUseOllama() ? 'my laptop' : 'model server required'}</option><option value="openrouter">OpenRouter · server key</option>
       </select>
       <p className="gemma-model">{status?.model || 'Gemma 4'}</p>
-      {provider === 'ollama' && !!status?.models?.length && <><label htmlFor="gemma-local-model">Installed Gemma model</label><select id="gemma-local-model" disabled={busy} value={model} onChange={event => { setModel(event.target.value); setMessages([]); }}>{status.models.map(name => <option key={name}>{name}</option>)}</select></>}
+      {!!status?.models?.length && <><label htmlFor="gemma-local-model">Gemma model</label><select id="gemma-local-model" disabled={busy} value={model} onChange={event => { setModel(event.target.value); setMessages([]); }}>{status.models.map(name => <option key={name}>{name}</option>)}</select></>}
       {status && !status.configured && <p role="status">{provider === 'ollama' ? 'Install or select a Gemma 4 model in Ollama.' : `Set ${provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENROUTER_API_KEY'} in the server .env, then restart the app.`}</p>}
       {statusError && <p role="alert">{statusError}</p>}
       <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)}>Check connection</button>

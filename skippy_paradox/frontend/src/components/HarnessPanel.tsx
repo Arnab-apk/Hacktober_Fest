@@ -5,7 +5,7 @@ import { StoredFile } from '../services/storageService';
 import { CollabProvider, SharedFileInfo } from '../services/collabService';
 import { approveCommand, cancelRun, HarnessEvent, hydrateFiles, loadModels, streamHarness } from '../services/harnessService';
 import { detectLanguage } from '../utils/detectLanguage';
-import { defaultAIProvider, needsServerAccess, useServerAccessToken } from '../services/serverAccess';
+import { canUseOllama, restoreAIProvider, needsServerAccess, useServerAccessToken } from '../services/serverAccess';
 import { ServerAccessSettings } from './ServerAccessSettings';
 
 interface Props {
@@ -23,7 +23,7 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
   const { isDark } = useTheme();
   const [provider, setProvider] = useState<'ollama' | 'openrouter' | 'gemini'>(() => {
     const saved = localStorage.getItem('harness-provider');
-    return saved === 'gemini' || saved === 'openrouter' || saved === 'ollama' ? saved : defaultAIProvider();
+    return restoreAIProvider(saved);
   });
   const [model, setModel] = useState('');
   const [models, setModels] = useState<string[]>([]);
@@ -88,7 +88,7 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
       const saved = localStorage.getItem(`harness-model-${selectedProvider}`);
       const selected = data.models.includes(saved)
         ? saved
-        : data.models.find((m: string) => /gemma.?4/i.test(m)) || data.models[0];
+        : data.models.includes(data.selected) ? data.selected : data.models[0];
       setModel(selected);
       localStorage.setItem(`harness-model-${selectedProvider}`, selected);
     } catch (err: any) { if (ticket === generation.current && !signal?.aborted) { setError(err.message); if (needsServerAccess(err.message)) setSettings(true); } }
@@ -189,7 +189,7 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
         <select aria-label="AI provider" disabled={busy} className={field} value={provider} onChange={e => setProvider(e.target.value as any)}>
           <option value="gemini">Gemma 4 · Gemini API</option>
           <option value="openrouter">OpenRouter · cloud</option>
-          <option value="ollama">Ollama · local</option>
+          <option value="ollama" disabled={!canUseOllama()}>Ollama · {canUseOllama() ? 'local' : 'model server required'}</option>
         </select>
         <button aria-label="Refresh models" disabled={busy || loadingModels} onClick={() => void refreshModels()} className="p-2 text-[var(--ide-accent)]">
           <RefreshCw size={16} className={loadingModels ? 'animate-spin' : ''} />
@@ -201,7 +201,7 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
       </select>
       {settings && <div className="space-y-2">
         <ServerAccessSettings disabled={busy} className={field} />
-        <p className="text-[10px] text-[var(--ide-muted)]">Keys are kept on the server in GEMINI_API_KEY and OPENROUTER_API_KEY. Local models use OLLAMA_BASE_URL. No automatic provider fallback.</p>
+        <p className="text-[10px] text-[var(--ide-muted)]">Cloud models use the server's provider keys. Ollama requires a reachable model server; this deployment cannot use your laptop's localhost. Provider changes are always explicit.</p>
       </div>}
     </div>
     <div role="log" aria-label="Harness activity" className="ide-agent-log min-h-0 flex-1 overflow-auto space-y-3">

@@ -13,6 +13,7 @@ from .harness import check_access
 
 router = APIRouter()
 MODELS = ('gemma-4-26b-a4b-it', 'gemma-4-31b-it')
+OPENROUTER_MODELS = tuple('google/' + model + suffix for suffix in ('', ':free') for model in MODELS)
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
 SLOTS = asyncio.Semaphore(4)
 LOCAL_CATALOG = None
@@ -125,7 +126,7 @@ async def status(request: Request, provider: Literal['gemini', 'ollama', 'openro
         return {'configured': model in names, 'model': model, 'models': names, 'provider': provider}
     model = configured_model() if provider == 'gemini' else os.getenv('GEMMA_OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it')
     key_name = 'GEMINI_API_KEY' if provider == 'gemini' else 'OPENROUTER_API_KEY'
-    return {'configured': bool(os.getenv(key_name, '').strip()), 'model': model, 'models': list(MODELS) if provider == 'gemini' else [model], 'provider': provider}
+    return {'configured': bool(os.getenv(key_name, '').strip()), 'model': model, 'models': list(MODELS) if provider == 'gemini' else list(OPENROUTER_MODELS), 'provider': provider}
 
 
 @router.post('/mentor')
@@ -139,6 +140,11 @@ async def mentor(body: MentorRequest, request: Request, authorization: str | Non
     if body.provider != 'ollama' and not key:
         raise HTTPException(503, f'Set {key_name} in the server .env and restart the app.')
     model = configured_model() if body.provider == 'gemini' else os.getenv('GEMMA_OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it')
+    if body.provider != 'ollama' and body.model:
+        allowed = MODELS if body.provider == 'gemini' else OPENROUTER_MODELS
+        if body.model not in allowed:
+            raise HTTPException(400, 'Choose a Gemma model from the model list.')
+        model = body.model
     try:
         await asyncio.wait_for(SLOTS.acquire(), timeout=0.05)
     except asyncio.TimeoutError:
@@ -162,7 +168,7 @@ async def mentor(body: MentorRequest, request: Request, authorization: str | Non
             messages.extend({'role': h.role, 'content': h.content} for h in body.history)
             parts = [{'type': 'text', 'text': part['text']} if 'text' in part else {'type': 'image_url', 'image_url': {'url': f'data:{body.image.mimeType};base64,{body.image.data}'}} for part in payload['contents'][-1]['parts']]
             messages.append({'role': 'user', 'content': parts})
-            response = await client.post('https://openrouter.ai/api/v1/chat/completions', headers={'Authorization': 'Bearer ' + key}, json={'model': model, 'messages': messages, 'max_tokens': 2048})
+            response = await client.post('https://openrouter.ai/api/v1/chat/completions', headers={'Authorization': 'Bearer ' + key}, json={'model': model, 'messages': messages, 'max_tokens': 4096, 'reasoning': {'enabled': False}})
         else:
             response = await client.post(
                 f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
@@ -170,11 +176,14 @@ async def mentor(body: MentorRequest, request: Request, authorization: str | Non
         if response.status_code in (401, 403):
             raise HTTPException(502, 'The selected provider rejected the server key. Check its permissions and model access.')
         if response.status_code == 429:
-            raise HTTPException(429, 'Provider quota reached. Wait and try again, or check your API quota.')
+            raise HTTPException(429, 'This model is rate-limited or busy. Choose another Gemma model, wait and retry, or check your provider quota.')
+        if response.status_code == 402:
+            raise HTTPException(402, 'OpenRouter has insufficient credits or its key allowance is exhausted. Add credits, update the key limit, or select a free model.')
         if response.status_code == 404:
             raise HTTPException(502, 'The configured Gemma model is unavailable to this API key.')
         if not response.is_success:
-            raise HTTPException(502, 'The selected provider could not complete the request. Check model access and try again.')
+            message = 'Google could not serve this Gemma model. Select OpenRouter for Gemma, or retry later.' if body.provider == 'gemini' and response.status_code >= 500 else 'The selected provider could not complete the request. Check model access and try again.'
+            raise HTTPException(502, message)
         try:
             data = response.json()
             if body.provider == 'ollama':

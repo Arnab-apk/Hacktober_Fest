@@ -71,6 +71,8 @@ def available_models(refresh=True):
                 if "text" not in m.get("architecture", {}).get("output_modalities", ["text"]):
                     continue
             model_id = m["id"].removeprefix("models/") if config.ACTIVE_PROVIDER == "gemini" else m["id"]
+            if config.ACTIVE_PROVIDER == "gemini" and (not model_id.startswith(("gemini-", "gemma-")) or any(part in model_id for part in ("tts", "image", "audio", "transcribe", "robotics", "computer-use"))):
+                continue
             models[model_id] = m
         if not models:
             raise ValueError("The provider returned no models supporting coding tools.")

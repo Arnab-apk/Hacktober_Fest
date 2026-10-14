@@ -21,6 +21,13 @@ export function useServerAccessToken() {
   return useSyncExternalStore(subscribe, getServerAccessToken, () => '');
 }
 export const needsServerAccess = (message: string) => /server access token|remote access/i.test(message);
-export function defaultAIProvider(): 'ollama' | 'gemini' {
-  return ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) ? 'ollama' : 'gemini';
+export function canUseOllama() {
+  return ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) || import.meta.env.VITE_REMOTE_OLLAMA === 'true';
+}
+export function defaultAIProvider(): 'ollama' | 'gemini' | 'openrouter' {
+  return canUseOllama() ? 'ollama' : 'openrouter';
+}
+export function restoreAIProvider(saved: string | null): 'ollama' | 'gemini' | 'openrouter' {
+  if (saved === 'ollama' && !canUseOllama()) return defaultAIProvider();
+  return saved === 'ollama' || saved === 'gemini' || saved === 'openrouter' ? saved : defaultAIProvider();
 }

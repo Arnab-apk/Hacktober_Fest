@@ -117,8 +117,6 @@ async def models(body: RunRequest, request: Request, authorization: str | None =
             data = json.loads(result or '{}')
             if data.get('type') != 'models':
                 raise HTTPException(502, data.get('message', 'Could not load models. Check provider and runtime dependencies.'))
-            if body.provider == 'gemini':
-                data['models'] = [m for m in data.get('models', []) if m.startswith('gemma-4-')]
             if len(MODEL_CACHE) >= 32:
                 MODEL_CACHE.clear()
             MODEL_CACHE[cache_key] = (time.monotonic(), data)
