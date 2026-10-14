@@ -156,7 +156,7 @@ async def mentor(body: MentorRequest, request: Request, authorization: str | Non
             if body.image:
                 user['images'] = [body.image.data]
             messages.append(user)
-            response = await client.post(ollama_root() + '/api/chat', json={'model': model, 'messages': messages, 'stream': False, 'keep_alive': '10m', 'options': {'num_predict': 2048, 'num_ctx': 8192}}, timeout=180)
+            response = await client.post(ollama_root() + '/api/chat', json={'model': model, 'messages': messages, 'stream': False, 'think': False, 'keep_alive': '10m', 'options': {'num_predict': 2048, 'num_ctx': 8192}}, timeout=180)
         elif body.provider == 'openrouter':
             messages = [{'role': 'system', 'content': payload['systemInstruction']['parts'][0]['text']}]
             messages.extend({'role': h.role, 'content': h.content} for h in body.history)
@@ -191,6 +191,10 @@ async def mentor(body: MentorRequest, request: Request, authorization: str | Non
         except (ValueError, IndexError, TypeError, AttributeError):
             raise HTTPException(502, 'Gemini API returned an invalid response. Try again.')
         if not text:
+            if body.provider == 'ollama':
+                if data.get('done_reason') == 'length' or data.get('message', {}).get('thinking'):
+                    raise HTTPException(502, 'Ollama finished reasoning or reached its output limit without a final answer. Try a shorter question or smaller code excerpt.')
+                raise HTTPException(502, 'Ollama returned an empty final answer. The local connection worked, but Gemma produced no text. Retry with a shorter question.')
             raise HTTPException(502, 'Gemma returned no answer. Rephrase your question or try another image.')
         return {'text': text, 'model': model, 'provider': body.provider, 'finishReason': candidate.get('finishReason', 'UNKNOWN')}
     except httpx.TimeoutException:

@@ -81,8 +81,9 @@ test('two approved collaborators synchronize agent edits, protect conflicts, and
     guest.send({ type: 'agent-event', event: { type: 'message', content: 'Finished', token: 'must-not-leak' } });
     const event = await host.wait('agent-event');
     assert.equal(event.event.content, 'Finished'); assert.equal(event.event.token, undefined);
+    guest.send({ type: 'leave' });
+    await host.wait('peer-left');
     guest.ws.close();
-    await new Promise(r => setTimeout(r, 100));
     host.send({ type: 'agent-claim', requestId: 'after-disconnect' });
     assert.equal((await host.wait('agent-reply')).ok, true);
     const unauthorized = new WebSocket(`${base}/doc/${room}/file1?token=wrong`);

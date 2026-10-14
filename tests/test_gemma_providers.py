@@ -37,7 +37,17 @@ class ProviderTests(unittest.TestCase):
             self.assertEqual(get.call_count, 1)
             self.assertTrue(post.call_args.args[0].endswith('/api/chat'))
             self.assertNotIn('headers', post.call_args.kwargs)
+            self.assertFalse(post.call_args.kwargs['json']['think'])
             self.assertEqual(post.call_args.kwargs['json']['messages'][-1]['images'], [image])
+
+    def test_local_thinking_only_and_empty_final_answers(self):
+        tags = httpx.Response(200, json={'models': [{'name': 'gemma4:e4b'}]}, request=httpx.Request('GET', 'http://localhost/api/tags'))
+        for result, expected in [({'message': {'content': '', 'thinking': 'private reasoning'}, 'done_reason': 'length'}, 'output limit'), ({'message': {'content': '   '}, 'done_reason': 'stop'}, 'empty final answer')]:
+            with self.subTest(result=result), patch('routers.gemma.httpx.AsyncClient.get', new_callable=AsyncMock, return_value=tags), patch('routers.gemma.httpx.AsyncClient.post', new_callable=AsyncMock, return_value=httpx.Response(200, json=result)):
+                response = self.client.post('/api/gemma/mentor', json={'provider': 'ollama', 'model': 'gemma4:e4b', 'prompt': 'Explain this code'})
+                self.assertEqual(response.status_code, 502)
+                self.assertIn(expected, response.json()['detail'])
+                self.assertNotIn('private reasoning', response.text)
 
     def test_openrouter_server_key_and_payload(self):
         with patch('routers.gemma.httpx.AsyncClient.post', new_callable=AsyncMock, return_value=httpx.Response(200, json={'choices': [{'message': {'content': 'Router answer'}, 'finish_reason': 'stop'}]})) as post:
