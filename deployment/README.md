@@ -14,7 +14,7 @@ Select Gemma 4 / Gemini API in the AI provider dropdown. The existing Gemini key
 
 ## Future releases
 
-Commit and push to arnab. Render services and Vercel are connected to the repository. Vercel uses skippy_paradox/frontend, npm ci, npm run build, and dist. Its VITE_API_URL and VITE_COLLAB_URL settings point to Render.
+Commit and push to arnab. Vercel automatically deploys the production branch. Render services use the public repository URL and need a manual deploy from the dashboard or API after a push; automatic updates require connecting the GitHub provider or a deploy-hook workflow. Vercel uses skippy_paradox/frontend, npm ci, npm run build, and dist. Its VITE_API_URL and VITE_COLLAB_URL settings point to Render.
 
 The API installs root requirements.txt, including the Skippy harness, and starts uvicorn from skippy_paradox/backend. The collaboration service builds deployment/socket.Dockerfile so Node PTY terminals have Python and the harness available. Both services use free plans.
 
