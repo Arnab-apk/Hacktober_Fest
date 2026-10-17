@@ -19,6 +19,11 @@ function apiUrl(path: string): string {
   return `${API_BASE}${normalizedPath}`;
 }
 
+function rawContentUrl(owner: string, repo: string, branch: string, path: string): string {
+  const encodedPath = [owner, repo, branch, path].map(value => value.split('/').map(encodeURIComponent).join('/')).join('/');
+  return `https://raw.githubusercontent.com/${encodedPath}`;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -329,7 +334,7 @@ export async function fetchRepoTree(
   branch: string
 ): Promise<RepoTree> {
   const res = await fetch(
-    apiUrl(`/github/repos/${owner}/${repo}/tree/${branch}`),
+    apiUrl(`/github/repos/${owner}/${repo}/tree/${encodeURIComponent(branch)}`),
     { headers: authHeaders(token) }
   );
   if (!res.ok) throw new Error(`Failed to fetch repo tree for ${owner}/${repo}`);
@@ -347,7 +352,7 @@ export async function fetchRawContent(
   path: string,
   token?: string | null
 ): Promise<string> {
-  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+  const rawUrl = rawContentUrl(owner, repo, branch, path);
   const params = new URLSearchParams({ url: rawUrl });
   const res = await fetch(`${apiUrl('/github/file')}?${params}`, {
     headers: authHeaders(token),
@@ -372,21 +377,22 @@ export interface ParsedGitHubUrl {
  * - https://raw.githubusercontent.com/owner/repo/branch/path/to/file.ext
  */
 export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
-  const blobRegex = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/;
-  const blobMatch = url.match(blobRegex);
-  if (blobMatch) {
-    const filePath = blobMatch[4];
-    return { owner: blobMatch[1], repo: blobMatch[2], branch: blobMatch[3], path: filePath, fileName: filePath.split('/').pop() || filePath };
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    // Query strings and line anchors are not part of the repository file path.
+    const match = parsed.host === 'github.com'
+      ? parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/)
+      : parsed.host === 'raw.githubusercontent.com'
+        ? parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/)
+        : null;
+    if (!match) return null;
+    const [owner, repo, branch, path] = match.slice(1).map(decodeURIComponent);
+    const fileName = path.split('/').pop();
+    return fileName ? { owner, repo, branch, path, fileName } : null;
+  } catch {
+    return null;
   }
-
-  const rawRegex = /^https?:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/;
-  const rawMatch = url.match(rawRegex);
-  if (rawMatch) {
-    const filePath = rawMatch[4];
-    return { owner: rawMatch[1], repo: rawMatch[2], branch: rawMatch[3], path: filePath, fileName: filePath.split('/').pop() || filePath };
-  }
-
-  return null;
 }
 
 /**
@@ -398,7 +404,7 @@ export async function fetchFromPublicUrl(url: string): Promise<{ fileName: strin
     throw new Error('Invalid GitHub URL. Supported formats:\n• https://github.com/owner/repo/blob/branch/file\n• https://raw.githubusercontent.com/owner/repo/branch/file');
   }
 
-  const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${parsed.branch}/${parsed.path}`;
+  const rawUrl = rawContentUrl(parsed.owner, parsed.repo, parsed.branch, parsed.path);
   const res = await fetch(rawUrl);
   if (!res.ok) {
     if (res.status === 404) throw new Error('File not found. Make sure the repository and file are public.');

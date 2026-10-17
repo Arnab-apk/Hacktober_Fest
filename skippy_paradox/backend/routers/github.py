@@ -4,7 +4,7 @@ Proxies requests to GitHub API with the user's access token,
 avoiding CORS issues from the browser.
 """
 
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import PlainTextResponse
@@ -75,7 +75,7 @@ async def get_contents(
     """Get contents (files/dirs) of a repository path."""
     url = f"{GITHUB_API}/repos/{owner}/{repo}/contents"
     if path:
-        url += f"/{path}"
+        url += f"/{quote(path, safe='/')}"
     async with httpx.AsyncClient() as client:
         resp = await client.get(url, headers=_gh_headers(authorization))
     if resp.status_code != 200:
@@ -103,7 +103,7 @@ async def fetch_file(
     return PlainTextResponse(resp.text)
 
 
-@router.get("/repos/{owner}/{repo}/tree/{branch}")
+@router.get("/repos/{owner}/{repo}/tree/{branch:path}")
 async def get_repo_tree(
     owner: str,
     repo: str,
@@ -114,9 +114,9 @@ async def get_repo_tree(
     Fetch the full recursive tree of a repository.
     Returns all files/dirs in one call using Git Trees API.
     """
-    url = f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+    url = f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/{quote(branch, safe='')}"
     async with httpx.AsyncClient() as client:
-        resp = await client.get(url, headers=_gh_headers(authorization))
+        resp = await client.get(url, params={"recursive": "1"}, headers=_gh_headers(authorization))
     if resp.status_code != 200:
         raise HTTPException(resp.status_code, f"Failed to fetch tree for {owner}/{repo}")
     data = resp.json()
